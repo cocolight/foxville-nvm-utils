@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 cocolight
+//
 // foxflash.rs -- Intel I225 / I226 (Foxville) NVM 固件镜像离线体检工具
 //
 // BUILD (零依赖，纯 Rust 标准库):
@@ -5,8 +8,8 @@
 // 如需调试信息更小：
 //     rustc -O -C strip=symbols -C target-feature=+crt-static -o foxflash.exe foxflash.rs
 //
-// 协议：MIT
-// 作者：为「倍控 G31-1338 四口机 I225-V 固件升级」项目而写
+// 协议：GPL-3.0-or-later（见仓库根 LICENSE）
+// 本项目源于「倍控 G31-1338 四口机 I225-V 固件升级」
 
 use std::env;
 use std::fs;

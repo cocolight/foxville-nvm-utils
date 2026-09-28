@@ -59,14 +59,28 @@ foxeep.exe 备份.eep --dump 0x00-0x7f   :: 打印原始 word
 
 ## 文档导航
 
+全部文档在 [`docs/`](docs)。
+
 | 文档 | 面向 | 内容 |
 |---|---|---|
-| [`foxflash用法.md`](foxflash用法.md) | 使用者 | 命令行用法、扫目录规则、输出字段、自动体检项、EEPID 对照 |
-| [`foxeep用法.md`](foxeep用法.md) | 使用者 | `.eep` 解析、比对模式、PBA 解码、实测结论 |
-| [`NVM原理与偏移依据.md`](NVM原理与偏移依据.md) | 想复核结论的人 | **两工具共用**：偏移量依据与证据强度、word↔byte 换算三重证据、1MB/2MB 回绕、校验和原理、`.eep` 与 `.bin` 的关系、未解问题 |
-| [`NVM字表_内核具名常量_中文.md`](NVM字表_内核具名常量_中文.md) | 查字段 | 内核具名常量 → word → 字节偏移 的完整中文对照表 |
-| [`foxflash 开发.md`](foxflash%20开发.md) | 改代码的人 | 源码结构（按行号）、编译、维护入口、已踩的坑、回归测试 |
-| [`foxeep 开发.md`](foxeep%20开发.md) | 改代码的人 | 同上（foxeep 版） |
+| [`foxflash用法.md`](docs/foxflash用法.md) | 使用者 | 命令行用法、扫目录规则、输出字段、自动体检项、EEPID 对照 |
+| [`foxeep用法.md`](docs/foxeep用法.md) | 使用者 | `.eep` 解析、比对模式、PBA 解码、实测结论 |
+| [`NVM原理与偏移依据.md`](docs/NVM原理与偏移依据.md) | 想复核结论的人 | **两工具共用**：偏移量依据与证据强度、word↔byte 换算三重证据、1MB/2MB 回绕、校验和原理、`.eep` 与 `.bin` 的关系、未解问题 |
+| [`NVM字表_内核具名常量_中文.md`](docs/NVM字表_内核具名常量_中文.md) | 查字段 | 内核具名常量 → word → 字节偏移 的完整中文对照表 |
+| [`foxflash 开发.md`](docs/foxflash%20开发.md) | 改代码的人 | 源码结构（按行号）、编译、维护入口、已踩的坑、回归测试 |
+| [`foxeep 开发.md`](docs/foxeep%20开发.md) | 改代码的人 | 同上（foxeep 版） |
+
+## 仓库结构
+
+```
+foxville-nvm-utils/
+├── README.md            ← 本文件
+├── LICENSE              GPL-3.0
+├── src/
+│   ├── foxflash.rs      .bin 完整 flash 镜像解析
+│   └── foxeep.rs        .eep Shadow RAM 转储解析
+└── docs/                全部文档（用法 / 原理 / 开发）
+```
 
 ## 下载
 
@@ -82,6 +96,7 @@ foxeep.exe 备份.eep --dump 0x00-0x7f   :: 打印原始 word
 源码是**单文件、零第三方依赖**（MD5 / DEFLATE / gzip / zip / tar 全部手写），一条命令出 exe：
 
 ```bat
+cd src
 rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxflash.exe foxflash.rs
 rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxeep.exe   foxeep.rs
 ```
@@ -90,8 +105,8 @@ rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxeep.exe   foxeep.r
 
 | 源码 | 行数 |
 |---|---|
-| `foxflash.rs` | ~1400 |
-| `foxeep.rs` | ~910 |
+| [`src/foxflash.rs`](src/foxflash.rs) | ~1400 |
+| [`src/foxeep.rs`](src/foxeep.rs) | ~910 |
 
 ## 偏移量依据
 
@@ -106,7 +121,7 @@ https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/
 （`NVM_MAC_ADDR`、`NVM_VERSION`、`NVM_DEV_ID`、`NVM_ALT_MAC_ADDR_PTR`、`NVM_CHECKSUM_REG`、
 `NVM_ETRACK_WORD`……），换算关系是 **word N ↔ 字节 2N**。
 
-这条换算有三重独立证据支撑（详见 [`NVM原理与偏移依据.md`](NVM原理与偏移依据.md)）：
+这条换算有三重独立证据支撑（详见 [`NVM原理与偏移依据.md`](docs/NVM原理与偏移依据.md)）：
 
 1. `igc_ethtool.c` 的 `first_word = eeprom->offset >> 1`，注释原文 "Device's eeprom is always little-endian, word addressable"
 2. 内核校验和算法 `sum(word 0..0x3F) == 0xBABA`：实测 **35 个镜像 31 个精确命中**
@@ -122,7 +137,18 @@ byte `0x20`（word 0x10）的官方字段名未知。
 
 ## License
 
-**MIT**（见 [`LICENSE`](LICENSE)）。
+**GNU General Public License v3.0 or later** —— SPDX: `GPL-3.0-or-later`（全文见 [`LICENSE`](LICENSE)）。
 
-关于 GPL：偏移量依据取自 GPL 的 Linux 内核源码，但本项目只引用了其中的**常量数值**（事实性信息），
-未复制任何内核代码，因此工具本身以 MIT 发布。内核源码出处已在上方显著标注。
+Copyright (C) 2026 cocolight
+
+|  |  |
+|---|---|
+| ✅ | 商用、修改、再分发都允许 |
+| ⚠️ | **必须署名** —— 保留版权声明与许可声明，并注明你改了哪里 |
+| ⚠️ | **衍生作品必须同样以 GPL-3.0 开源** —— 不能拿去做闭源产品；分发二进制时要能提供对应源码 |
+| ⚠️ | 不提供任何担保 |
+
+一句话：**你可以拿它赚钱，但不能拿走它、也不能把它关起来。**
+
+关于内核：偏移量依据取自 GPL-2.0 的 Linux 内核驱动源码，但本项目只引用了其中的**常量数值**
+（事实性信息），未复制任何内核代码。内核源码出处已在上方显著标注。

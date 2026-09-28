@@ -1,4 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 cocolight
+//
 // foxeep.rs -- Intel I225 / I226 (Foxville) Shadow RAM 转储（*.eep）解析与比对工具
+//
+// 协议：GPL-3.0-or-later（见仓库根 LICENSE）
 //
 // 姊妹工具：
 //     foxflash.exe  解析完整 flash 镜像（.bin / .zip / .tar.gz）

@@ -24,14 +24,14 @@ GitHub 镜像：`https://github.com/torvalds/linux/tree/master/drivers/net/ether
 
 | 文件 | 说明 |
 |---|---|
-| `foxflash.rs` | 源码，单文件，1403 行，**零第三方依赖，只用 Rust 标准库** |
-| `foxflash.exe` | 编译产物（x86_64 Windows，约 230 KB） |
-| `foxflash用法.md` | 用户文档：命令行用法、输出字段、体检项 |
-| `NVM原理与偏移依据.md` | 偏移量依据、容量判定、校验和、EEPID 语义（**与 foxeep 共用**） |
-| `NVM字表_内核具名常量_中文.md` | 内核具名常量 → 字节偏移 的完整中文对照表 |
-| `foxflash 开发.md` | 本文件（开发者文档） |
+| `src/foxflash.rs` | 源码，单文件，1406 行，**零第三方依赖，只用 Rust 标准库** |
+| `src/foxflash.exe` | 编译产物（x86_64 Windows，约 230 KB；**不入库**，走 GitHub Release） |
+| `docs/foxflash用法.md` | 用户文档：命令行用法、输出字段、体检项 |
+| `docs/NVM原理与偏移依据.md` | 偏移量依据、容量判定、校验和、EEPID 语义（**与 foxeep 共用**） |
+| `docs/NVM字表_内核具名常量_中文.md` | 内核具名常量 → 字节偏移 的完整中文对照表 |
+| `docs/foxflash 开发.md` | 本文件（开发者文档） |
 
-**姊妹工具 `foxeep`**（`foxeep.rs` / `foxeep.exe` / `foxeep用法.md` / `foxeep 开发.md`）
+**姊妹工具 `foxeep`**（`src/foxeep.rs` / `src/foxeep.exe` / `docs/foxeep用法.md` / `docs/foxeep 开发.md`）
 读的是 `.eep`（Shadow RAM 文本转储）。两套代码里
 `known_eepid()` / `devid_label()` / `nvm_version_label()` **各存了一份**，
 改动要同步 —— 见 [`foxeep 开发.md`](foxeep%20开发.md) §1。
@@ -44,16 +44,17 @@ GitHub 镜像：`https://github.com/torvalds/linux/tree/master/drivers/net/ether
 ## 2. 编译
 
 Rust **没有卸载**，工具链在 `%USERPROFILE%\.cargo\bin`（rustup 装的 GNU 链）。
+以下命令都在**仓库根目录**执行：
 
 ```bat
 set PATH=%USERPROFILE%\.cargo\bin;%PATH%
-rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxflash.exe foxflash.rs
+rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o src/foxflash.exe src/foxflash.rs
 ```
 
 Git Bash 里则写：
 
 ```sh
-PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxflash.exe foxflash.rs
+PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o src/foxflash.exe src/foxflash.rs
 ```
 
 编译完会多出一个 `.pdb`，可以删掉，不影响 exe。
@@ -62,21 +63,21 @@ PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=ab
 
 | 区块 | 行 | 内容 |
 |---|---|---|
-| 常量 / 提示输出口 | 17–31 | `APP`、`VERSION`、`JSON_MODE`（`AtomicBool`）、`note()` |
-| 控制台 UTF-8 / 宽度计算 | 33–118 | `set_console_utf8`、`display_width`、`pad`、`truncate`（中文对齐用） |
-| MD5 | 120–235 | `Md5`、`md5_hex`，手写实现 |
-| DEFLATE / gzip | 237–509 | `BitReader`、`Huffman`、`inflate`、`gunzip`，手写实现 |
-| 小工具 | 511–520 | `u32le_at` / `u16le_at`（小端取值） |
-| 容器读取 | 522–628 | `Entry`、`read_zip`、`read_tar`（不解压直接读包内镜像） |
-| 文件筛选 | 629–645 | `is_image_name`（显式传文件时用）、`is_bin_name`（扫目录时用，**只收 .bin**） |
-| 核心数据结构 | 650–718 | `struct ImageInfo`，结构体上方有一整块**偏移量依据注释** |
-| 字段标签 | 719–756 | `flash_idx_label`、`imgtype_label`、`devid_label` |
-| EEPID 已知表 | 757–791 | `const KNOWN_EEPID`（**唯一数据源**）+ `known_eepid()` |
-| 版本解码 | 826–837 | `nvm_version_label`，见 §5 坑 2 |
-| 镜像解析 | 838–986 | `parse_image`，含 NVM 校验和、Alternate MAC、自动体检 |
-| 输入收集 | 992–1088 | `collect_from_dir`、`collect`（提示统一走 `note()`） |
-| 输出 | 1091–1341 | `show_result`、`show_compare`、`show_known`、`usage`、`print_json` |
-| 入口 | 1346–1403 | `main` |
+| 常量 / 提示输出口 | 20–34 | `APP`、`VERSION`、`JSON_MODE`（`AtomicBool`）、`note()` |
+| 控制台 UTF-8 / 宽度计算 | 36–121 | `set_console_utf8`、`display_width`、`pad`、`truncate`（中文对齐用） |
+| MD5 | 123–238 | `Md5`、`md5_hex`，手写实现 |
+| DEFLATE / gzip | 240–512 | `BitReader`、`Huffman`、`inflate`、`gunzip`，手写实现 |
+| 小工具 | 514–523 | `u32le_at` / `u16le_at`（小端取值） |
+| 容器读取 | 525–631 | `Entry`、`read_zip`、`read_tar`（不解压直接读包内镜像） |
+| 文件筛选 | 632–648 | `is_image_name`（显式传文件时用）、`is_bin_name`（扫目录时用，**只收 .bin**） |
+| 核心数据结构 | 653–721 | `struct ImageInfo`，结构体上方有一整块**偏移量依据注释** |
+| 字段标签 | 722–759 | `flash_idx_label`、`imgtype_label`、`devid_label` |
+| EEPID 已知表 | 760–794 | `const KNOWN_EEPID`（**唯一数据源**）+ `known_eepid()` |
+| 版本解码 | 829–840 | `nvm_version_label`，见 §5 坑 2 |
+| 镜像解析 | 841–989 | `parse_image`，含 NVM 校验和、Alternate MAC、自动体检 |
+| 输入收集 | 995–1091 | `collect_from_dir`、`collect`（提示统一走 `note()`） |
+| 输出 | 1094–1344 | `show_result`、`show_compare`、`show_known`、`usage`、`print_json` |
+| 入口 | 1349–1406 | `main` |
 
 ## 4. 维护已知值 —— 只改一处
 
@@ -84,11 +85,11 @@ PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=ab
 
 | 位置 | 管什么 |
 |---|---|
-| `KNOWN_EEPID`（757 行） | EEPID 对照表。镜像解析时的「已知」提示和 `--list-known` 都从这张表读 |
-| `devid_label()`（735 行） | DeviceID → 型号名（15F3 / 15F2 / 125B / 125C / 125D） |
-| `flash_idx_label()`（719 行） | byte `0x07` 的值 → 容量标签 |
-| `nvm_version_label()`（826 行） | 版本字解码 |
-| `note()`（25 行） | 所有 `[i]`/`[!]` 提示的唯一出口；`--json` 时改走 stderr |
+| `KNOWN_EEPID`（760 行） | EEPID 对照表。镜像解析时的「已知」提示和 `--list-known` 都从这张表读 |
+| `devid_label()`（738 行） | DeviceID → 型号名（15F3 / 15F2 / 125B / 125C / 125D） |
+| `flash_idx_label()`（722 行） | byte `0x07` 的值 → 容量标签 |
+| `nvm_version_label()`（829 行） | 版本字解码 |
+| `note()`（28 行） | 所有 `[i]`/`[!]` 提示的唯一出口；`--json` 时改走 stderr |
 
 > 历史教训：早期 `--list-known` 另有一份硬编码 6 条列表，改了 `KNOWN_EEPID` 帮助不跟着变，
 > 两份数据会走偏。已合并为单一数据源。

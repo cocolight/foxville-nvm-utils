@@ -19,7 +19,7 @@ https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/
 | | `foxflash.exe` | `foxeep.exe` |
 |---|---|---|
 | 输入 | `.bin` 完整 flash 镜像（含 `.zip`/`.tar.gz` 直读） | `.eep` Shadow RAM 文本转储（也可吃 `.bin` 做比对） |
-| 规模 | 1403 行，含手写 MD5 / DEFLATE / gzip / zip / tar | 912 行，**无压缩代码**，只解析文本 |
+| 规模 | 1406 行，含手写 MD5 / DEFLATE / gzip / zip / tar | 917 行，**无压缩代码**，只解析文本 |
 | 共有逻辑 | 版本解码、DeviceID 表、EEPID 表、内核偏移定义 | 同左（**两份代码里各有一份，改的时候要同步**） |
 
 > ⚠️ `known_eepid()` / `devid_label()` / `nvm_version_label()` 在 `foxflash.rs` 和
@@ -46,16 +46,16 @@ PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=ab
 
 | 区块 | 行 | 内容 |
 |---|---|---|
-| 文件头注释 | 1–58 | **.eep 格式的实测说明**（含 word ↔ .bin 字节的对应关系），别删 |
-| 常量 / 提示输出口 | 60–74 | `APP`、`VERSION`、`EXPECTED_WORDS`、`JSON_MODE`、`note()` |
-| 控制台 UTF-8 / 分隔线 | 76–104 | `set_console_utf8`、`line`、`thin_line` |
-| 数据结构 | 107–123 | `enum Kind`（Eep / Bin）、`struct Src` |
-| 文本解析 | 125–209 | `parse_word`、`parse_range_header`、`parse_eep_text`、`parse_bin` |
-| 字段解码 | 211–348 | `word`、`mac_from_words`、`nvm_version_label`、`devid_label`、`compat_label`、`imgtype_label`、`known_eepid`、`pba_string` |
-| 分析 | 350–476 | `struct Info`、`analyze()`（含全部体检项） |
-| 输出 | 478–740 | `show_result`、`show_dump`、`show_compare`、`print_json`、`usage` |
-| 输入收集 | 742–841 | `is_eep_name`、`collect_from_dir`、`load_one`、`collect`、`parse_range`、`parse_num` |
-| 入口 | 843–912 | `main` |
+| 文件头注释 | 1–63 | **.eep 格式的实测说明**（含 word ↔ .bin 字节的对应关系），别删 |
+| 常量 / 提示输出口 | 65–79 | `APP`、`VERSION`、`EXPECTED_WORDS`、`JSON_MODE`、`note()` |
+| 控制台 UTF-8 / 分隔线 | 81–109 | `set_console_utf8`、`line`、`thin_line` |
+| 数据结构 | 112–128 | `enum Kind`（Eep / Bin）、`struct Src` |
+| 文本解析 | 130–214 | `parse_word`、`parse_range_header`、`parse_eep_text`、`parse_bin` |
+| 字段解码 | 216–353 | `word`、`mac_from_words`、`nvm_version_label`、`devid_label`、`compat_label`、`imgtype_label`、`known_eepid`、`pba_string` |
+| 分析 | 355–481 | `struct Info`、`analyze()`（含全部体检项） |
+| 输出 | 483–745 | `show_result`、`show_dump`、`show_compare`、`print_json`、`usage` |
+| 输入收集 | 747–846 | `is_eep_name`、`collect_from_dir`、`load_one`、`collect`、`parse_range`、`parse_num` |
+| 入口 | 848–917 | `main` |
 
 ## 4. 解析要点
 
