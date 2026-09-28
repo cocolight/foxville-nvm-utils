@@ -1,0 +1,11 @@
+# 编译产物：源码进仓库，exe 走 GitHub Release
+*.exe
+*.pdb
+
+# 调试 / 临时输出
+_*.json
+*.tmp
+
+# 系统
+Thumbs.db
+desktop.ini
