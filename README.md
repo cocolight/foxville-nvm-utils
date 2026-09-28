@@ -5,7 +5,7 @@ Intel I225 / I226（代号 **Foxville**）网卡 NVM 固件的**离线只读**�
 
 > 只**读**文件，不碰你的网卡、不写任何东西。刷机与否由你决定。
 
-[快速上手](#快速上手) · [文档](#文档导航) · [编译](#编译) · [偏移量依据](#偏移量依据) · [License](#license)
+[下载](#下载) · [快速上手](#快速上手) · [文档](#文档导航) · [编译](#编译) · [偏移量依据](#偏移量依据) · [License](#license)
 
 ---
 
@@ -67,6 +67,15 @@ foxeep.exe 备份.eep --dump 0x00-0x7f   :: 打印原始 word
 | [`NVM字表_内核具名常量_中文.md`](NVM字表_内核具名常量_中文.md) | 查字段 | 内核具名常量 → word → 字节偏移 的完整中文对照表 |
 | [`foxflash 开发.md`](foxflash%20开发.md) | 改代码的人 | 源码结构（按行号）、编译、维护入口、已踩的坑、回归测试 |
 | [`foxeep 开发.md`](foxeep%20开发.md) | 改代码的人 | 同上（foxeep 版） |
+
+## 下载
+
+不想编译的话，直接用预编译的 Windows x64 版：
+
+**[foxville-nvm-utils-v2.1-win64.zip](https://github.com/cocolight/foxville-nvm-utils/releases/download/v2.1/foxville-nvm-utils-v2.1-win64.zip)**
+（`foxflash.exe` + `foxeep.exe` + 两份用法文档 + LICENSE，233 KB）
+
+其他平台没有预编译包——但源码零依赖，见下面「编译」，一条 `rustc` 命令即可。
 
 ## 编译
 
