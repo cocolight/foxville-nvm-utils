@@ -23,6 +23,7 @@ GitHub 上已有的两个同类项目都是**改 / 刷**向的：
 
 ## 能干什么
 
+- **双击即用** —— 双击 exe 进交互模式，可连续看多份镜像，`exit` 退出；拖拽启动也不闪退
 - **判 1MB / 2MB** —— 识破「1MB 闪存被按 2MB 长度读出」造成的 **2MB 假象**（前后半 MD5 相同 = 地址回绕）
 - 解析完整字段：MAC / 版本 / 四组 PCI ID / PBA 板号 / Alternate MAC / EEPID(EtrackID)
 - **NVM 校验和体检**（内核 `NVM_SUM 0xBABA`）—— 改过 Subsystem ID 却没重算校验和的 OEM 镜像会被直接抓出来
@@ -38,10 +39,35 @@ GitHub 上已有的两个同类项目都是**改 / 刷**向的：
 | **`foxeep`** | `.eep` Shadow RAM 文本转储（也能吃 `.bin` 做比对） | 解字段、体检、**逐 word 比对** |
 
 前缀 `fox` = Intel 内部代号 **Fox**ville。
+两个 exe 都**可以双击启动**，进入可连续输入的小控制台（见下）。
 
 ## 快速上手
 
-Windows 下直接把文件拖到 exe 上即可，或用命令行：
+### 最省事：双击
+
+**双击 `foxflash.exe` / `foxeep.exe` 就直接进交互模式**：
+
+```text
+========================================================================
+  foxflash 2.2 (rust)   Intel I225/I226 (Foxville) NVM 镜像离线体检
+========================================================================
+把文件拖进这个窗口，或直接粘贴路径，回车即可；一行可以写多个，用空格分隔。
+输入 help 查看完整用法，输入 exit 退出。
+
+foxflash> _
+```
+
+- 把 `.bin` **拖进窗口中**（或复制路径粘贴）回车，当场出结果；
+- 一行可以写多个文件或一个目录，写法和命令行完全一样
+  （`Foxpond1_...bin 备份.bin`、`备份目录 -r`、`--list-known` 都行）；
+- **跑完会回到提示符等你继续**，可以一口气看很多份，不用反复启停；
+- 输入 `exit`（或 `quit` / `q`）退出，也可直接关窗口；
+- 把文件**拖到 exe 图标上**启动时，跑完这一次同样**不会关窗**，会转入交互模式。
+
+从 cmd / PowerShell 用命令行启动时行为不变：跑完就退，不干扰脚本与管道。
+想在命令行里强制进交互模式，加 `-i`。
+
+### 命令行
 
 ```bat
 :: 看一份 flash 镜像
@@ -63,11 +89,11 @@ foxeep.exe 备份.eep --dump 0x00-0x7f   :: 打印原始 word
 
 | 文档 | 面向 | 内容 |
 |---|---|---|
-| [`foxflash用法.md`](docs/foxflash用法.md) | 使用者 | 命令行用法、扫目录规则、输出字段、自动体检项、EEPID 对照 |
-| [`foxeep用法.md`](docs/foxeep用法.md) | 使用者 | `.eep` 解析、比对模式、PBA 解码、实测结论 |
+| [`foxflash用法.md`](docs/foxflash用法.md) | 使用者 | 双击/交互模式、命令行用法、扫目录规则、输出字段、自动体检项、EEPID 对照 |
+| [`foxeep用法.md`](docs/foxeep用法.md) | 使用者 | 双击/交互模式、`.eep` 解析、比对模式、PBA 解码、实测结论 |
 | [`NVM原理与偏移依据.md`](docs/NVM原理与偏移依据.md) | 想复核结论的人 | **两工具共用**：偏移量依据与证据强度、word↔byte 换算三重证据、1MB/2MB 回绕、校验和原理、`.eep` 与 `.bin` 的关系、未解问题 |
 | [`NVM字表_内核具名常量_中文.md`](docs/NVM字表_内核具名常量_中文.md) | 查字段 | 内核具名常量 → word → 字节偏移 的完整中文对照表 |
-| [`foxflash 开发.md`](docs/foxflash%20开发.md) | 改代码的人 | 源码结构（按行号）、编译、维护入口、已踩的坑、回归测试 |
+| [`foxflash 开发.md`](docs/foxflash%20开发.md) | 改代码的人 | 模块结构、编译、维护入口（只改一处）、已踩的坑、回归测试、变更记录 |
 | [`foxeep 开发.md`](docs/foxeep%20开发.md) | 改代码的人 | 同上（foxeep 版） |
 
 ## 仓库结构
@@ -77,23 +103,44 @@ foxville-nvm-utils/
 ├── README.md            ← 本文件
 ├── LICENSE              GPL-3.0
 ├── src/
-│   ├── foxflash.rs      .bin 完整 flash 镜像解析
-│   └── foxeep.rs        .eep Shadow RAM 转储解析
+│   ├── foxflash.rs      入口：命令行解析 + 交互模式调度
+│   ├── foxeep.rs        入口：命令行解析 + 交互模式调度
+│   └── lib/             模块（两个入口各自按需引入）
+│       ├── term.rs          终端基座：UTF-8 / 中文宽度 / 提示出口 / 双击检测   ← 共用
+│       ├── repl.rs          双击启动的交互模式（REPL）                        ← 共用
+│       ├── nvm.rs           字段定义、版本解码、EEPID 表（**唯一数据源**）     ← 共用
+│       ├── md5.rs           手写 MD5
+│       ├── deflate.rs       手写 DEFLATE / gzip
+│       ├── archive.rs       zip / tar(.gz) 直读
+│       ├── flash_parse.rs   foxflash：收集输入 + 解析 .bin
+│       ├── flash_report.rs  foxflash：排版输出
+│       ├── eep_parse.rs     foxeep：还原 word + 体检
+│       └── eep_report.rs    foxeep：排版输出
 └── docs/                全部文档（用法 / 原理 / 开发）
 ```
 
+`src/lib/` 里的模块用 `#[path = "lib/xxx.rs"] mod xxx;` 引入，
+`term` / `repl` / `nvm` 三个被两个工具**共用同一份源文件** ——
+所以字段表和版本解码不会再出现「改一边忘一边」。仍然**不需要 Cargo**。
+
 ## 下载
 
-不想编译的话，直接用预编译的 Windows x64 版：
+**v2.2（推荐）** —— 双击交互模式 + 模块化重构（foxflash 2.2 / foxeep 1.1）：
 
-**[foxville-nvm-utils-v2.1-win64.zip](https://github.com/cocolight/foxville-nvm-utils/releases/download/v2.1/foxville-nvm-utils-v2.1-win64.zip)**
-（`foxflash.exe` + `foxeep.exe` + 两份用法文档 + LICENSE，233 KB）
+**[foxville-nvm-utils-v2.2-win64.zip](https://github.com/cocolight/foxville-nvm-utils/releases/download/v2.2/foxville-nvm-utils-v2.2-win64.zip)**
+（`foxflash.exe` + `foxeep.exe` + 两份用法文档 + LICENSE）
 
-其他平台没有预编译包——但源码零依赖，见下面「编译」，一条 `rustc` 命令即可。
+上一版 **v2.1**（单文件源码，**没有**交互模式）：
+[foxville-nvm-utils-v2.1-win64.zip](https://github.com/cocolight/foxville-nvm-utils/releases/download/v2.1/foxville-nvm-utils-v2.1-win64.zip)（233 KB）
+
+其他平台不用等打包，按下面「编译」一条 `rustc` 命令自己编即可 ——
+不需要 Cargo、不需要联网。
 
 ## 编译
 
-源码是**单文件、零第三方依赖**（MD5 / DEFLATE / gzip / zip / tar 全部手写），一条命令出 exe：
+源码**零第三方依赖**（MD5 / DEFLATE / gzip / zip / tar 全部手写），
+拆成「入口 + `lib/` 模块」只是为了好读，**不需要 Cargo** —— `rustc` 原生支持多文件模块，
+每个 exe 仍然只出一条命令：
 
 ```bat
 cd src
@@ -101,12 +148,17 @@ rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxflash.exe foxflash
 rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxeep.exe   foxeep.rs
 ```
 
-不需要 Cargo、不需要联网拉 crate。
+也可以从仓库根目录编（`#[path = "lib/..."]` 是相对**入口文件所在目录**解析的，两种写法都行）：
+
+```bat
+rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o src/foxflash.exe src/foxflash.rs
+```
 
 | 源码 | 行数 |
 |---|---|
-| [`src/foxflash.rs`](src/foxflash.rs) | ~1400 |
-| [`src/foxeep.rs`](src/foxeep.rs) | ~910 |
+| `src/foxflash.rs` | 156 |
+| `src/foxeep.rs` | 166 |
+| `src/lib/`（10 个模块） | ~2520 |
 
 ## 偏移量依据
 

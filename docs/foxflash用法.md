@@ -1,29 +1,62 @@
 # foxflash.exe 用法
 
-> Intel I225 / I226（Foxville）**完整 flash 镜像（`.bin`）离线**查看工具　|　版本 2.1（Rust）　|　2026-09-28
+> Intel I225 / I226（Foxville）**完整 flash 镜像（`.bin`）离线**查看工具　|　版本 2.2（Rust）　|　2026-09-29
 >
 > **姊妹工具**：`foxflash` 读完整 flash 镜像（`.bin`/`.zip`/`.tar.gz`），
 > **`foxeep`** 读 Shadow RAM 转储（`.eep`）。看 `.eep` 请换 foxeep。
 >
 > - 偏移量的一手依据 → [`NVM原理与偏移依据.md`](NVM原理与偏移依据.md)
 > - 完整内核具名字表 → [`NVM字表_内核具名常量_中文.md`](NVM字表_内核具名常量_中文.md)
-> - 改代码 / 重新编译 → [`foxflash 开发.md`](foxflash%20开发.md)
+> - 改代码 / 重新编译 → [`foxflash 开发.md`](foxflash%20开发.md)（**v2.2 起源码拆成模块，见该文 §1**）
 
 ---
 
 ## 1. 这是什么
 
-一个**零依赖**的单文件命令行小工具。不用上机、不用装 eeupdate，直接在 PC 上读出任意
+一个**零依赖**的命令行小工具（v2.2 起源码拆成模块以便阅读，但仍是
+**一条 `rustc` 命令编出单个 exe**）。不用上机、不用装 eeupdate，直接在 PC 上读出任意
 `.bin` 固件镜像的关键字段 —— 尤其是 **EtrackID（EEPID）**。
 
-- 约 230 KB 单文件 exe，拷到任何 Windows 机器上就能跑；
+- 单个 exe 约 250 KB（v2.1 为 234 KB），拷到任何 Windows 机器上就能跑；
 - 不需要 Python、.NET 或任何运行库，不需要联网；
 - 支持不解压直读 `.zip` / `.tar.gz` / `.tgz` 里的镜像。
 
-## 2. 最省事的用法
+## 2. 最省事的用法（v2.2 新增：双击即用）
 
-把一个（或按住 Ctrl 选多个）`.bin` 文件**直接拖到 `foxflash.exe` 图标上松手**，
-会弹出窗口显示结果，看完按任意键关闭。
+**双击 `foxflash.exe`**，不用带任何参数，直接进交互模式：
+
+```text
+========================================================================
+  foxflash 2.2 (rust)   Intel I225/I226 (Foxville) NVM 镜像离线体检
+========================================================================
+把文件拖进这个窗口，或直接粘贴路径，回车即可；一行可以写多个，用空格分隔。
+输入 help 查看完整用法，输入 exit 退出。
+
+foxflash> 60BEB402680E.bin
+```
+
+要点：
+
+- 把 `.bin` **拖进这个窗口**（Windows 会把路径自动填到提示符后面），回车即出结果；
+- 也可以复制路径粘贴。带空格的路径会自动带引号，工具能正确识别；
+- **一行可以写多个文件或一个目录**，参数写法和命令行完全一致：
+
+  ```text
+  foxflash> Foxpond1_I225_15F3_V_1MB_1p94.bin 60BEB402680E.bin
+  foxflash> "F:\倍控G31-1338\Intel-I226-V-NVM-Firmware" -r
+  foxflash> --list-known
+  foxflash> help
+  ```
+
+- **跑完不会退出**，会回到 `foxflash>` 等你继续，连着看十份也不用反复启停；
+- 输入 `exit`（或 `quit` / `q`）退出；直接关窗口也行；
+- 把文件**拖到 exe 图标上**启动时，会先照常跑完这一次，然后同样**不关窗**、转入交互模式。
+
+> 交互模式里如果某次输入写错了（路径不存在之类），工具只报一行 `[!]`，然后接着等下一次输入，
+> 不会退出，也不会卡住。
+
+从 cmd / PowerShell 用命令行启动时**行为完全不变**（跑完就退，不影响脚本与管道）。
+想在命令行里主动进交互模式，见下面 `-i`。
 
 ## 3. 命令行用法
 
@@ -33,10 +66,16 @@ foxflash.exe 备份.bin 升级镜像.bin          :: 多个镜像，自动出对
 foxflash.exe 目录 [-r]                     :: 扫描目录，-r 为递归
 foxflash.exe 官方包.zip                    :: 不解压，直接读 zip 里的镜像
 foxflash.exe 官方包.tar.gz                 :: 不解压，直接读 tar.gz 里的镜像
-foxflash.exe --list-known                  :: 打印已记录的 EEPID 对照表（24 条）
+foxflash.exe --list-known                  :: 打印已记录的 EEPID 对照表（25 条）
 foxflash.exe --json 镜像.bin               :: 机器可读输出（JSON）
+foxflash.exe -i                            :: 强制进入交互模式（等价于双击启动）
 foxflash.exe --help                        :: 帮助
 ```
+
+> `-i` / `--interactive`：无条件进交互模式，便于在 cmd 里手动用；
+> 若同时给了文件参数，会先跑完这些参数再进交互。
+> 无参数启动时，**双击**、或 stdout 是终端，都会自动进交互模式；
+> 被脚本/管道调用（stdin 不是终端）时保持老行为——打帮助并以退出码 1 结束，免得脚本挂住。
 
 > `--json` 时 stdout **只有 JSON**，「已跳过 N 个非 .bin」这类 `[i]`/`[!]` 提示改走 stderr，
 > 可以直接 `foxflash.exe ... --json > out.json` 交给脚本解析。
@@ -99,7 +138,7 @@ foxflash.exe 备份目录 某个.zip 单独一个.bin
 的参数（官方 `eeupdate.txt` 全表 60+ 参数里没有），而且它 dump 出来的文件大小恰恰
 就是这个 2MB 假象的来源。判容量只能靠离线读镜像头。
 
-> 为什么会回绕、eeupdate 为什么读不了离线文件 → 见 [`foxflash原理.md`](foxflash原理.md)
+> 为什么会回绕、eeupdate 为什么读不了离线文件 → 见 [`NVM原理与偏移依据.md`](NVM原理与偏移依据.md) §5
 
 ## 9. EEPID 不能单独当版本号用
 
@@ -119,7 +158,8 @@ foxflash.exe 备份目录 某个.zip 单独一个.bin
 foxflash.exe --list-known
 ```
 
-打印完整 24 条对照表（表的唯一数据源就在源码 `KNOWN_EEPID` 里，比在任何文档里列都准）。
+打印完整 25 条对照表（表的唯一数据源就在源码 `lib/nvm.rs` 的 `KNOWN_EEPID` 里，
+比在任何文档里列都准；`foxeep` 也读同一张表）。
 
 几条跟本机直接相关的：
 

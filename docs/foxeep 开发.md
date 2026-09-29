@@ -19,43 +19,47 @@ https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/
 | | `foxflash.exe` | `foxeep.exe` |
 |---|---|---|
 | 输入 | `.bin` 完整 flash 镜像（含 `.zip`/`.tar.gz` 直读） | `.eep` Shadow RAM 文本转储（也可吃 `.bin` 做比对） |
-| 规模 | 1406 行，含手写 MD5 / DEFLATE / gzip / zip / tar | 917 行，**无压缩代码**，只解析文本 |
-| 共有逻辑 | 版本解码、DeviceID 表、EEPID 表、内核偏移定义 | 同左（**两份代码里各有一份，改的时候要同步**） |
+| 独有代码 | 手写 MD5 / DEFLATE / gzip / zip / tar | 无压缩代码，只解析文本 + PBA 解码 |
+| 入口 | `src/foxflash.rs`（156 行） | `src/foxeep.rs`（166 行） |
+| **共用模块** | `lib/term.rs`、`lib/repl.rs`、`lib/nvm.rs` | 同上，**指向同一批源文件** |
 
-> ⚠️ `known_eepid()` / `devid_label()` / `nvm_version_label()` 在 `foxflash.rs` 和
-> `foxeep.rs` 里**各存了一份**。foxflash 的 `KNOWN_EEPID` 是 24 条常量表，
-> foxeep 的是精简版 `match`（12 条）。改动时两边都要改 —— 这是当前已知的技术债，
-> 没有合并是因为两个 exe 都要保持「单文件零依赖」，拆公共库会引入多文件构建。
+> ✅ **v1.1 已还清技术债。** v1.0 时代 `known_eepid()` / `devid_label()` /
+> `nvm_version_label()` 在两个 `.rs` 里各存一份，改动要同步两边。
+> v1.1 起这些全部挪进 `src/lib/nvm.rs`，两个入口用
+> `#[path = "lib/nvm.rs"] mod nvm;` **指向同一个文件**，
+> 于是「改一处、两边生效」——而且**仍然不需要 Cargo**，每个 exe 还是一条 `rustc` 命令。
+> 顺带把 foxeep 的「已知 EEPID」提示从 12 条精简 `match` 升级成完整 25 条表。
 
 ## 2. 编译
 
 ```bat
 set PATH=%USERPROFILE%\.cargo\bin;%PATH%
-rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxeep.exe foxeep.rs
+cd 仓库根目录
+rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o src/foxeep.exe src/foxeep.rs
 ```
 
 Git Bash：
 
 ```sh
-PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o foxeep.exe foxeep.rs
+PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=abort -C strip=symbols -o src/foxeep.exe src/foxeep.rs
 ```
 
-编译会多出一个 `.pdb`，可删。
+编译会多出一个 `.pdb`，可删。正常应**零 warning**（共用模块里的死代码已用
+`#![allow(dead_code)]` 压掉 —— 因为 `nvm.rs` 里有一部分函数只有 foxflash 用得到）。
 
-## 3. 代码结构（按行号）
+## 3. 模块结构
 
-| 区块 | 行 | 内容 |
+| 文件 | 行数 | 职责 |
 |---|---|---|
-| 文件头注释 | 1–63 | **.eep 格式的实测说明**（含 word ↔ .bin 字节的对应关系），别删 |
-| 常量 / 提示输出口 | 65–79 | `APP`、`VERSION`、`EXPECTED_WORDS`、`JSON_MODE`、`note()` |
-| 控制台 UTF-8 / 分隔线 | 81–109 | `set_console_utf8`、`line`、`thin_line` |
-| 数据结构 | 112–128 | `enum Kind`（Eep / Bin）、`struct Src` |
-| 文本解析 | 130–214 | `parse_word`、`parse_range_header`、`parse_eep_text`、`parse_bin` |
-| 字段解码 | 216–353 | `word`、`mac_from_words`、`nvm_version_label`、`devid_label`、`compat_label`、`imgtype_label`、`known_eepid`、`pba_string` |
-| 分析 | 355–481 | `struct Info`、`analyze()`（含全部体检项） |
-| 输出 | 483–745 | `show_result`、`show_dump`、`show_compare`、`print_json`、`usage` |
-| 输入收集 | 747–846 | `is_eep_name`、`collect_from_dir`、`load_one`、`collect`、`parse_range`、`parse_num` |
-| 入口 | 848–917 | `main` |
+| `src/foxeep.rs` | 166 | **入口**：CLI 参数解析、双击/拖拽判定与分发、`run_once()` |
+| `src/lib/eep_parse.rs` | 484 | `Kind`/`Src`/`Info`、`.eep` 文本与 `.bin` 的 word 还原、`analyze()` 全部体检项、输入收集、`--dump` 范围解析 |
+| `src/lib/eep_report.rs` | 307 | `show_result` / `show_dump` / `show_compare` / `usage` / `print_json` |
+| `src/lib/nvm.rs` | 207 | 字段常量 / 版本解码 / 型号表 / `KNOWN_EEPID` ← **与 foxflash 共用** |
+| `src/lib/term.rs` | 202 | 终端基座 ← **共用** |
+| `src/lib/repl.rs` | 113 | 交互模式 ← **共用** |
+
+`src/lib/eep_parse.rs` 的文件头有一整块 **`.eep` 格式的实测说明**（含 word ↔ `.bin`
+字节的对应关系），别删。
 
 ## 4. 解析要点
 
@@ -77,13 +81,15 @@ PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=ab
 - `raw.trim()` 同时吃掉 `\r`，所以 CRLF / LF 都行。
 - `String::from_utf8_lossy` 兜底，非 UTF-8 字节不会 panic。
 - `Range` 分节头会**核对**声明起点与实际累计 word 数是否一致（对不上说明文件被手工编辑过）。
+- word 取值统一走 `word(&w, i)`：**越界返回 `0xFFFF`**，与 Shadow RAM 未编程区一致，
+  省掉满地边界判断。
 
 ### 4.3 .bin 参与比对
 
 `load_one()` 里：`.eep`/`.txt` 走文本解析，**其余一律当二进制**按 u16 小端转 word。
 所以 `foxeep.exe a.eep b.bin` 能直接逐 word 比对。
 
-## 5. 三个已踩过的坑
+## 5. 已踩过的坑
 
 ### 坑 1：PBA 字符串的字节序
 
@@ -101,22 +107,35 @@ PATH="/c/Users/<用户名>/.cargo/bin:$PATH" rustc -O -C opt-level=s -C panic=ab
 
 内核 `NVM_MINOR_MASK 0x0FF0` 是 igb 老布局（次版本占 bit 4..11）：1.94 → `0x1940`。
 Foxville 次版本占 **bit 0..7**：1.94 → `0x1094`。
-本工具掩码用 `0x0FFF`，再套内核的 HEX→DEC 折算。用错会解成 "1.09"。
+解码函数在 `src/lib/nvm.rs`（与 foxflash 共用），掩码用 `0x0FFF`，
+再套内核的 HEX→DEC 折算。用错会解成 "1.09"。
 
 ### 坑 3：提示必须走 `note()`
 
 `--json` 的卖点是「stdout 是纯 JSON」。收集阶段任何 `[i]`/`[!]` 若直接 `println!`
-就会插到 JSON 前面，严格解析器立刻报错。新增提示一律用 `note()`，
+就会插到 JSON 前面，严格解析器立刻报错。新增提示一律用 `term::note()`，
 由它按 `JSON_MODE` 路由到 stdout / stderr。
+
+### 坑 4：交互模式别误伤脚本
+
+无参数启动时，只有**双击**（独占控制台）或 **stdin 是终端**才进交互模式；
+被管道/重定向调用仍走老行为（打帮助、退出码 1）。判据在
+`src/lib/term.rs::launched_by_double_click()`，详细理由见
+[`foxflash 开发.md`](foxflash%20开发.md) §5 坑 5 —— 别把这里改成「无参数就交互」。
+
+### 坑 5：`--json` 状态要每次任务重置
+
+`run_once()` 一进来就 `term::set_json_mode(false)`，否则在交互模式里打过一次
+`--json` 之后，后续每一轮的提示都会改道 stderr。新增进程级状态时照此办理。
 
 ## 6. 回归测试
 
 ```bat
 :: A. 本机 .eep：MAC 60:BE:B4:02:68:XX，NVM 1.57，EEPID 0x80000182，校验和 OK，PBA 2G43650-XX
-foxeep.exe "F:\倍控G31-1338\倍控G31-4LAN_immortalwrt-V25.12_系统备份\04-I225V_1MB固件备份\60BEB40268XX.eep"
+foxeep.exe "F:\倍控G31-1338\倍控G31-4LAN_immortalwrt-V25.12_系统备份\04-I225V_1MB固件备份\60BEB402680E.eep"
 
 :: B. .eep vs 同名 .bin 应「完全相同」（本机这组零差异）
-foxeep.exe "...\60BEB40268XX.eep" "...\60BEB40268XX.bin"
+foxeep.exe "...\60BEB402680E.eep" "...\60BEB402680E.bin"
 
 :: C. 官方 .eep vs 同名 .bin 应「10 个 word 不同」
 foxeep.exe "F:\倍控G31-1338\intel_i225_i226_firmware\NVM\FXVL_15F3_V_1MB_1.89.eep" ^
@@ -129,9 +148,27 @@ foxeep.exe "...\FXVL_15F3_V_1MB_1.89.eep" "...\FXVL_15F2_LM_1MB_1.89.eep"
 foxeep.exe "F:\倍控G31-1338\倍控G31-4LAN_immortalwrt-V25.12_系统备份\04-I225V_1MB固件备份"
 
 :: F. --dump / --json
-foxeep.exe "...\60BEB40268XX.eep" --dump 0x3c-0x43
+foxeep.exe "...\60BEB402680E.eep" --dump 0x3c-0x43
 foxeep.exe "...\04-I225V_1MB固件备份" --json
 ```
+
+交互模式（管道喂输入即可，不需要真的双击）：
+
+```bat
+:: G. 进交互、跑一次、退出
+printf "exit\n" | foxeep.exe -i
+printf "\"...\60BEB402680E.eep\" --dump 0x3c-0x43\nexit\n" | foxeep.exe -i
+
+:: H. 先带参数跑一次再进交互（= 拖拽启动的代码路径）
+printf "exit\n" | foxeep.exe -i "...\60BEB402680E.eep"
+```
+
+要检查的行为：
+
+1. 管道模式下**不**进交互（`foxeep.exe x.eep < /dev/null` 应跑完即退）；
+2. `exit` / `quit` / `q` 都能退出；EOF（不给 exit）也安静退出、退出码 0；
+3. 输入不存在的路径后仍能继续下一轮；
+4. `--json` 时 stdout 仍是纯 JSON（提示都在 stderr，含目录跳过的 `[i]`）。
 
 ## 7. 已知未解问题
 
@@ -145,3 +182,43 @@ foxeep.exe "...\04-I225V_1MB固件备份" --json
    这两个 word 的含义未知。
 6. Shadow RAM 只覆盖 4 KB（`0x800` word），而 1MB flash 镜像有 524288 word ——
    比对只能覆盖前 4 KB，这是 `.eep` 格式本身的限制，不是工具缺陷。
+7. 「双击检测」依赖 `GetConsoleProcessList`，只在 Windows 生效；非 Windows 编译时
+   恒为 `false`（走命令行语义）。
+
+## 8. 变更记录
+
+| 版本 | 日期 | 内容 |
+|---|---|---|
+| 1.0 (rust) | 2026-09-28 | 首版：`.eep` 文本解析、字段解码、逐 word 比对、`--dump`、`--json` |
+| **1.1** | **2026-09-29** | **双击启动的交互模式**（`exit` 退出、跑完回提示符可连续输入、拖拽不关窗）+ `-i` 强制交互；**源码拆成「入口 + 模块」**，`nvm`/`term`/`repl` 与 foxflash **共用同一份文件**，还清「两份 known_eepid / devid_label / nvm_version_label」技术债；EEPID 已知表由 12 条精简 `match` 换成共用的完整 25 条表；`--dump` 缺参数时明确报错返回 2 |
+
+### v1.1 详细
+
+**功能**
+
+1. **双击即用**：无参数双击 `foxeep.exe` 直接进交互模式：
+
+   ```text
+   foxeep> 备份.eep 备份.bin
+   ```
+
+   一行可写多个文件/目录，支持引号包住带空格的路径；跑完回到提示符并提示
+   「继续输入…或 exit 退出」；`exit` / `quit` / `q` 退出。
+2. **拖拽启动不闪退**：把 `.eep` 拖到图标上，先跑完这一次，再转入交互模式。
+3. **`-i` / `--interactive`** 强制进交互模式。
+4. **命令行行为零变化**：`--dump` / `--json` / `-r` 语义与退出码保持；
+   被脚本/管道调用时不会进交互、不会挂住。
+
+**结构**
+
+5. 与 foxflash 共用 `src/lib/nvm.rs`：`known_eepid()` / `devid_label()` /
+   `nvm_version_label()` / `capacity_from_compat_hi()` 从此只有一处定义。
+   `w0x03` 的容量标签也改走共用函数（以前是 `compat_label()` 自己一份 `match`）。
+6. 共用 `src/lib/term.rs`（终端基座 + `note()`）与 `src/lib/repl.rs`（交互模式）。
+7. 引入方式为 `#[path = "lib/xxx.rs"] mod xxx;` —— **不需要 Cargo**，
+   编译命令仍然是原来那一条 `rustc`。
+
+**顺手修的**
+
+8. `--dump` 后面漏给范围参数时明确报错并返回 2（以前静默忽略该参数）。
+9. 文档：本文件从「行号表」改为「模块 + 函数」表（行号会腐烂）。

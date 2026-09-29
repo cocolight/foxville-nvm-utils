@@ -9,3 +9,6 @@ _*.json
 # 系统
 Thumbs.db
 desktop.ini
+
+# 工作区本地数据（不随仓库分发）
+.workbuddy/
